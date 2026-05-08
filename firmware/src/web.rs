@@ -77,6 +77,7 @@ canvas{width:100%;height:250px;background:#1a1a1a;border:1px solid #333;border-r
 <button onclick="fetch('/stop',{method:'POST'})">Stop</button>
 <button onclick="fetch('/simulate',{method:'POST'})" id="simbtn">Simulate: OFF</button>
 </div>
+<p style="font-size:0.8em;color:#888">LED: <span style="color:#a0f">&#x25cf;</span> connecting <span style="color:#00f">&#x25cf;</span> idle <span style="color:#f80">&#x25cf;</span> preheat <span style="color:#ff0">&#x25cf;</span> soak <span style="color:#f00">&#x25cf;</span> reflow <span style="color:#0cf">&#x25cf;</span> cooling <span style="color:#0f0">&#x25cf;</span> done</p>
 <script>
 const canvas=document.getElementById('chart'),ctx=canvas.getContext('2d');
 function resize(){canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight}
