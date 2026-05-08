@@ -168,12 +168,21 @@ fn main() -> Result<()> {
         runner.update(temp, dt);
 
         // PID
-        let duty = if runner.phase == Phase::Idle || runner.phase == Phase::Done {
+        let mut duty = if runner.phase == Phase::Idle || runner.phase == Phase::Done {
             0.0
         } else {
             pid.set_target(runner.target_temperature());
             pid.update(temp, dt)
         };
+
+        // Over-temperature watchdog: kill heat if >250°C
+        const MAX_SAFE_TEMP: f32 = 250.0;
+        if temp > MAX_SAFE_TEMP {
+            duty = 0.0;
+            runner.stop();
+            pid.reset();
+            log::error!("OVER-TEMPERATURE {:.0}°C > {:.0}°C — heater OFF", temp, MAX_SAFE_TEMP);
+        }
 
         if simulating {
             sim_sensor.set_duty(duty);
