@@ -50,15 +50,7 @@ fn main() -> Result<()> {
         password: WIFI_PASS.try_into().unwrap(),
         ..Default::default()
     }))?;
-    wifi.start()?;
-    wifi.connect()?;
-    wifi.wait_netif_up()?;
-    unsafe { esp_idf_svc::sys::esp_wifi_set_ps(esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE); }
-    let ip = wifi.wifi().sta_netif().get_ip_info()?.ip;
-    info!("WiFi connected, IP: {}", ip);
-    status_led.update(Phase::Idle); // blue = connected
-
-    // Set hostname
+    // Set hostname before DHCP so router sees it
     {
         use esp_idf_svc::handle::RawHandle;
         let hostname = std::ffi::CString::new("reflow-oven").unwrap();
@@ -69,7 +61,13 @@ fn main() -> Result<()> {
             );
         }
     }
-    info!("Hostname: reflow-oven");
+    wifi.start()?;
+    wifi.connect()?;
+    wifi.wait_netif_up()?;
+    unsafe { esp_idf_svc::sys::esp_wifi_set_ps(esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE); }
+    let ip = wifi.wifi().sta_netif().get_ip_info()?.ip;
+    info!("WiFi connected, IP: {} (hostname: reflow-oven)", ip);
+    status_led.update(Phase::Idle); // blue = connected
 
     // Shared state
     let state: SharedState = Arc::new(Mutex::new(OvenState::default()));
