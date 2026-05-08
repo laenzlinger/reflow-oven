@@ -58,6 +58,19 @@ fn main() -> Result<()> {
     info!("WiFi connected, IP: {}", ip);
     status_led.update(Phase::Idle); // blue = connected
 
+    // Set hostname
+    {
+        use esp_idf_svc::handle::RawHandle;
+        let hostname = std::ffi::CString::new("reflow-oven").unwrap();
+        unsafe {
+            esp_idf_svc::sys::esp_netif_set_hostname(
+                wifi.wifi().sta_netif().handle(),
+                hostname.as_ptr(),
+            );
+        }
+    }
+    info!("Hostname: reflow-oven");
+
     // Shared state
     let state: SharedState = Arc::new(Mutex::new(OvenState::default()));
     let history: SharedHistory = Arc::new(Mutex::new(History::new()));
