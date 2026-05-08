@@ -36,6 +36,10 @@ fn main() -> Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
     let nvs = EspDefaultNvsPartition::take()?;
 
+    // Status LED (NeoPixel on GPIO48) - purple = connecting
+    let mut status_led = led::StatusLed::new(peripherals.pins.gpio48)?;
+    let _ = status_led.set_color(15, 0, 15); // purple = connecting WiFi
+
     // WiFi
     let mut wifi = BlockingWifi::wrap(
         EspWifi::new(peripherals.modem, sysloop.clone(), Some(nvs))?,
@@ -52,6 +56,7 @@ fn main() -> Result<()> {
     unsafe { esp_idf_svc::sys::esp_wifi_set_ps(esp_idf_svc::sys::wifi_ps_type_t_WIFI_PS_NONE); }
     let ip = wifi.wifi().sta_netif().get_ip_info()?.ip;
     info!("WiFi connected, IP: {}", ip);
+    status_led.update(Phase::Idle); // blue = connected
 
     // Shared state
     let state: SharedState = Arc::new(Mutex::new(OvenState::default()));
@@ -102,10 +107,6 @@ fn main() -> Result<()> {
     // SSR on GPIO5
     let ssr_pin = PinDriver::output(peripherals.pins.gpio5)?;
     let mut ssr = Ssr::new(ssr_pin, 2000);
-
-    // Status LED (NeoPixel on GPIO48)
-    let mut status_led = led::StatusLed::new(peripherals.pins.gpio48)?;
-    status_led.update(Phase::Idle);
 
     // PID controller
     let mut pid = Pid::new(2.0, 0.01, 5.0);
