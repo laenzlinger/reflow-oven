@@ -8,6 +8,7 @@ out/
 
 # Rust / ESP-IDF
 firmware/target/
+firmware/.embuild/
 firmware/sdkconfig
 firmware/.env
 
