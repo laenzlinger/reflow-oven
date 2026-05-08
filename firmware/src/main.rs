@@ -188,7 +188,7 @@ fn main() -> Result<()> {
 
         // Record history during active profile
         if runner.phase != Phase::Idle {
-            history.lock().unwrap().push(elapsed_s, temp, runner.target_temperature());
+            history.lock().unwrap().push(elapsed_s, temp, runner.target_temperature(), runner.phase);
         }
 
         // Update shared state for web UI

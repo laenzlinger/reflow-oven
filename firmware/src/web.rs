@@ -27,6 +27,7 @@ pub struct HistoryPoint {
     t: f32,
     temp: f32,
     target: f32,
+    phase: Phase,
 }
 
 pub struct History {
@@ -38,11 +39,11 @@ impl History {
         Self { points: Vec::with_capacity(600) }
     }
 
-    pub fn push(&mut self, elapsed_s: f32, temp: f32, target: f32) {
+    pub fn push(&mut self, elapsed_s: f32, temp: f32, target: f32, phase: Phase) {
         if self.points.len() >= 600 {
             self.points.remove(0);
         }
-        self.points.push(HistoryPoint { t: elapsed_s, temp, target });
+        self.points.push(HistoryPoint { t: elapsed_s, temp, target, phase });
     }
 
     pub fn clear(&mut self) {
@@ -104,10 +105,15 @@ function drawChart(hist){
   hist.forEach((p,i)=>{i?ctx.lineTo(x(p.t),y(p.target)):ctx.moveTo(x(p.t),y(p.target));});
   ctx.stroke();ctx.setLineDash([]);
 
-  // Temperature line
-  ctx.strokeStyle='#0f0';ctx.lineWidth=2;ctx.beginPath();
-  hist.forEach((p,i)=>{i?ctx.lineTo(x(p.t),y(p.temp)):ctx.moveTo(x(p.t),y(p.temp));});
-  ctx.stroke();
+  // Temperature line colored by phase
+  const phaseColor={Preheat:'#f80',Soak:'#ff0',Reflow:'#f00',Cooling:'#0cf',Done:'#0f0',Idle:'#00f'};
+  for(let i=1;i<hist.length;i++){
+    ctx.strokeStyle=phaseColor[hist[i].phase]||'#0f0';
+    ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(x(hist[i-1].t),y(hist[i-1].temp));
+    ctx.lineTo(x(hist[i].t),y(hist[i].temp));
+    ctx.stroke();
+  }
 }
 
 function poll(){
