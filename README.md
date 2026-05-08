@@ -96,11 +96,17 @@ make flash
 
 ### Web UI
 
-Once running, open `http://<esp32-ip>/` in a browser. Endpoints:
-- `GET /` — dashboard with live temperature
-- `GET /status` — JSON: `{temperature, target, duty_pct, phase}`
+Once running, open `http://reflow-oven.home/` in a browser. Endpoints:
+
+![Web UI](docs/web-ui.png)
+
+- `GET /` — dashboard with live temperature chart
+- `GET /status` — JSON: `{temperature, target, duty_pct, phase, simulating, elapsed_s}`
+- `GET /history` — JSON array of `{t, temp, target, phase}` points
 - `POST /start` — begin reflow profile
 - `POST /stop` — abort
+- `POST /simulate` — toggle simulated sensor
+- `POST /profile` — set profile (`sn63pb37` or `sn42bi58`)
 
 ## Status
 
