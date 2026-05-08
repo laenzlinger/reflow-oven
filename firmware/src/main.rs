@@ -179,11 +179,18 @@ fn main() -> Result<()> {
         const MAX_SAFE_TEMP: f32 = 250.0;
         const MIN_SANE_TEMP: f32 = -10.0;
         const MAX_SANE_TEMP: f32 = 300.0;
+        const MAX_PROFILE_DURATION_S: f32 = 600.0; // 10 minutes
         if temp > MAX_SAFE_TEMP || temp < MIN_SANE_TEMP || temp > MAX_SANE_TEMP {
             duty = 0.0;
             runner.stop();
             pid.reset();
             log::error!("SAFETY CUTOFF: temp={:.0}°C (sensor broken or over-temp)", temp);
+        }
+        if elapsed_s > MAX_PROFILE_DURATION_S && runner.phase != Phase::Idle && runner.phase != Phase::Done {
+            duty = 0.0;
+            runner.stop();
+            pid.reset();
+            log::error!("SAFETY CUTOFF: profile timeout ({:.0}s)", elapsed_s);
         }
 
         if simulating {
