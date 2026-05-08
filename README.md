@@ -30,7 +30,7 @@ MAINS → [Emergency Stop] → [Electronics Box] → [Oven]
 | SSR | Solid-state relay (available) | Switches mains to heating elements |
 | Temperature sensor | NTC 100K B3950 (DollaTek, glass-sealed) | Temperature sensing inside chamber |
 | Emergency stop | Mushroom-head switch | Mains kill switch |
-| Enclosure | Abzweigdose ~120×80mm | Houses ESP32 + SSR |
+| Enclosure | Abzweigdose ~180×120mm | Houses ESP32 + SSR + PSU |
 | Solder paste | Relife HW21 Sn63/Pb37 (183°C) | Primary paste |
 | Solder paste | Sn42/Bi58 low-temp (138°C) | Alternative for heat-sensitive components |
 
