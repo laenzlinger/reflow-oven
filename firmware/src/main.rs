@@ -177,11 +177,13 @@ fn main() -> Result<()> {
 
         // Over-temperature watchdog: kill heat if >250°C
         const MAX_SAFE_TEMP: f32 = 250.0;
-        if temp > MAX_SAFE_TEMP {
+        const MIN_SANE_TEMP: f32 = -10.0;
+        const MAX_SANE_TEMP: f32 = 300.0;
+        if temp > MAX_SAFE_TEMP || temp < MIN_SANE_TEMP || temp > MAX_SANE_TEMP {
             duty = 0.0;
             runner.stop();
             pid.reset();
-            log::error!("OVER-TEMPERATURE {:.0}°C > {:.0}°C — heater OFF", temp, MAX_SAFE_TEMP);
+            log::error!("SAFETY CUTOFF: temp={:.0}°C (sensor broken or over-temp)", temp);
         }
 
         if simulating {
