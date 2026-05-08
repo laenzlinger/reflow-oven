@@ -6,7 +6,7 @@ license = "CERN-OHL-P-2.0"
 
 [dependencies]
 esp-idf-svc = { version = "0.52", features = ["binstart"] }
-esp-idf-hal = { version = "0.46", features = ["rmt-legacy"] }
+esp-idf-hal = "0.46"
 log = "0.4"
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }

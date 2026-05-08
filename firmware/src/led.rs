@@ -1,40 +1,52 @@
 use anyhow::Result;
 use esp_idf_svc::hal::gpio::OutputPin;
-use esp_idf_svc::hal::rmt::config::TransmitConfig;
-use esp_idf_svc::hal::rmt::{FixedLengthSignal, PinState, Pulse, RmtChannel, TxRmtDriver};
-use std::time::Duration;
+use esp_idf_svc::hal::rmt::config::{TxChannelConfig, TransmitConfig};
+use esp_idf_svc::hal::rmt::encoder::BytesEncoderConfig;
+use esp_idf_svc::hal::rmt::{PinState, Pulse, PulseTicks, Symbol, TxChannelDriver};
+use esp_idf_svc::hal::units::FromValueType;
 
 use crate::profile::Phase;
 
 pub struct StatusLed<'a> {
-    tx: TxRmtDriver<'a>,
+    tx: TxChannelDriver<'a>,
+    encoder_config: BytesEncoderConfig,
 }
 
 impl<'a> StatusLed<'a> {
-    pub fn new(channel: impl RmtChannel + 'a, pin: impl OutputPin + 'a) -> Result<Self> {
-        let config = TransmitConfig::new()
-            .clock_divider(2)
-            .idle(Some(PinState::Low));
-        let tx = TxRmtDriver::new(channel, pin, &config)?;
-        Ok(Self { tx })
+    pub fn new(pin: impl OutputPin + 'a) -> Result<Self> {
+        // 10MHz resolution = 100ns per tick
+        let channel_config = TxChannelConfig {
+            resolution: 10.MHz().into(),
+            ..Default::default()
+        };
+        let tx = TxChannelDriver::new(pin, &channel_config)?;
+
+        // WS2812 timings at 10MHz (100ns/tick):
+        // T0H=400ns=4t, T0L=850ns=9t, T1H=800ns=8t, T1L=450ns=5t
+        let bit0 = Symbol::new(
+            Pulse::new(PinState::High, PulseTicks::new(4).unwrap()),
+            Pulse::new(PinState::Low, PulseTicks::new(9).unwrap()),
+        );
+        let bit1 = Symbol::new(
+            Pulse::new(PinState::High, PulseTicks::new(8).unwrap()),
+            Pulse::new(PinState::Low, PulseTicks::new(5).unwrap()),
+        );
+        let encoder_config = BytesEncoderConfig {
+            bit0,
+            bit1,
+            msb_first: true,
+            ..Default::default()
+        };
+
+        Ok(Self { tx, encoder_config })
     }
 
     pub fn set_color(&mut self, r: u8, g: u8, b: u8) -> Result<()> {
-        let ticks_hz = self.tx.counter_clock()?;
-        let t0h = Pulse::new_with_duration(ticks_hz, PinState::High, &Duration::from_nanos(350))?;
-        let t0l = Pulse::new_with_duration(ticks_hz, PinState::Low, &Duration::from_nanos(800))?;
-        let t1h = Pulse::new_with_duration(ticks_hz, PinState::High, &Duration::from_nanos(700))?;
-        let t1l = Pulse::new_with_duration(ticks_hz, PinState::Low, &Duration::from_nanos(600))?;
-
-        // WS2812: GRB, MSB first
-        let color: u32 = ((g as u32) << 16) | ((r as u32) << 8) | b as u32;
-        let mut signal = FixedLengthSignal::<24>::new();
-        for i in (0..24).rev() {
-            let bit = (color >> i) & 1 != 0;
-            let (high, low) = if bit { (t1h, t1l) } else { (t0h, t0l) };
-            signal.set(23 - i as usize, &(high, low))?;
-        }
-        self.tx.start_blocking(&signal)?;
+        use esp_idf_svc::hal::rmt::encoder::BytesEncoder;
+        let encoder = BytesEncoder::with_config(&self.encoder_config)?;
+        let data = [g, r, b]; // WS2812: GRB order
+        let tx_config = TransmitConfig::default();
+        self.tx.send_and_wait(encoder, &data, &tx_config)?;
         Ok(())
     }
 

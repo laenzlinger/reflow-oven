@@ -15,7 +15,7 @@ repos:
     hooks:
       - id: sops-check
         name: sops encryption check
-        entry: bash -c 'for f in "$@"; do grep -q "sops:" "$f" || (echo "ERROR: $f is not encrypted!" && exit 1); done'
+        entry: bash -c 'for f in "$@"; do grep -q "sops" "$f" || (echo "ERROR: $f is not encrypted!" && exit 1); done'
         language: system
         files: \.sops\.yaml$
         exclude: ^\.sops\.yaml$

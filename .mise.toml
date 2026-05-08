@@ -1,5 +1,4 @@
 [tools]
-rust = "nightly"
 "cargo:espup" = "latest"
 "cargo:espflash" = "latest"
 "cargo:ldproxy" = "latest"

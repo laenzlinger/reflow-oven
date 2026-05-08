@@ -3,7 +3,7 @@
 SHELL := /bin/bash
 
 USB_PORT ?= /dev/ttyACM0
-ESP_ENV := . $(HOME)/export-esp.sh 2>/dev/null;
+ESP_ENV := . $(HOME)/export-esp.sh 2>/dev/null; export RUSTUP_TOOLCHAIN=esp;
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'

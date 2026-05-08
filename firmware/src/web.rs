@@ -23,7 +23,7 @@ impl Default for OvenState {
 }
 
 #[derive(Clone, Serialize)]
-struct HistoryPoint {
+pub struct HistoryPoint {
     t: f32,
     temp: f32,
     target: f32,

@@ -103,6 +103,10 @@ fn main() -> Result<()> {
     let ssr_pin = PinDriver::output(peripherals.pins.gpio5)?;
     let mut ssr = Ssr::new(ssr_pin, 2000);
 
+    // Status LED (NeoPixel on GPIO48)
+    let mut status_led = led::StatusLed::new(peripherals.pins.gpio48)?;
+    status_led.update(Phase::Idle);
+
     // PID controller
     let mut pid = Pid::new(2.0, 0.01, 5.0);
 
@@ -112,6 +116,7 @@ fn main() -> Result<()> {
     // Control loop (~4 Hz)
     let dt = 0.25_f32;
     let mut elapsed_s: f32 = 0.0;
+    let mut last_phase = Phase::Idle;
     loop {
         let now = Instant::now();
 
@@ -183,6 +188,12 @@ fn main() -> Result<()> {
             s.phase = runner.phase;
             s.simulating = simulating;
             s.elapsed_s = elapsed_s;
+        }
+
+        // Update LED on phase change
+        if runner.phase != last_phase {
+            status_led.update(runner.phase);
+            last_phase = runner.phase;
         }
 
         // Sleep remainder of loop period
