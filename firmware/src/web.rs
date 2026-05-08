@@ -122,6 +122,8 @@ function poll(){
     document.getElementById('target').textContent=d.target.toFixed(0);
     document.getElementById('duty').textContent=d.duty_pct.toFixed(0);
     document.getElementById('phase').textContent=d.phase;
+  const pc={Preheat:'#f80',Soak:'#ff0',Reflow:'#f00',Cooling:'#0cf',Done:'#0f0',Idle:'#00f'};
+  document.getElementById('phase').style.color=pc[d.phase]||'#ff0';
     document.getElementById('simbtn').textContent='Simulate: '+(d.simulating?'ON':'OFF');
   });
   fetch('/history').then(r=>r.json()).then(drawChart);
