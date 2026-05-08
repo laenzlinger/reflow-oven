@@ -1,0 +1,7 @@
+[tools]
+rust = "nightly"
+"cargo:espup" = "latest"
+"cargo:espflash" = "latest"
+"cargo:ldproxy" = "latest"
+sops = "3.9"
+pre-commit = "latest"

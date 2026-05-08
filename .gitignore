@@ -5,3 +5,9 @@ fp-info-cache
 
 # Output
 out/
+
+# Rust / ESP-IDF
+firmware/target/
+firmware/sdkconfig
+firmware/.env
+

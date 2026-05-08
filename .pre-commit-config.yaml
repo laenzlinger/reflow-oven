@@ -1,0 +1,27 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+
+  - repo: local
+    hooks:
+      - id: sops-check
+        name: sops encryption check
+        entry: bash -c 'for f in "$@"; do grep -q "sops:" "$f" || (echo "ERROR: $f is not encrypted!" && exit 1); done'
+        language: system
+        files: \.sops\.yaml$
+        exclude: ^\.sops\.yaml$
+
+      - id: cargo-check
+        name: cargo check
+        entry: bash -c 'cd firmware && cargo check'
+        language: system
+        pass_filenames: false

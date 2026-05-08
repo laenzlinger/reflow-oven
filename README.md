@@ -12,31 +12,105 @@ Toaster oven conversion to a reflow soldering oven with a custom controller PCB.
 ## Architecture
 
 ```
-[Thermocouple] → [Controller PCB] → [SSR] → [Heating elements]
-                       ↓
-                  [Display/UI]
+MAINS → [Emergency Stop] → [Electronics Box] → [Oven]
+                                  │
+                            ┌─────┴─────┐
+                            │ SSR       │──── switches Live to oven elements
+                            │ ESP32-S3  │──── WiFi web UI, PID control
+                            │ NTC divider│──── thermistor into oven chamber
+                            └───────────┘
 ```
 
 ## Components
 
-| Component | Role |
-|-----------|------|
-| Toaster oven | Heating chamber (TBD model) |
-| Controller PCB | Custom — profile management, PID control |
-| SSR | Switches mains to heating elements |
-| K-type thermocouple | Temperature sensing inside chamber |
-| MAX31855 or MAX6675 | Thermocouple-to-SPI interface |
+| Component | Part | Role |
+|-----------|------|------|
+| Toaster oven | Severin TO-2052 (9L, 800W) | Heating chamber |
+| Controller | ESP32-S3-DevKitC-1 | Profile management, PID control, WiFi web UI |
+| SSR | Solid-state relay (available) | Switches mains to heating elements |
+| Temperature sensor | NTC 100K B3950 (DollaTek, glass-sealed) | Temperature sensing inside chamber |
+| Emergency stop | Mushroom-head switch | Mains kill switch |
+| Enclosure | Abzweigdose ~120×80mm | Houses ESP32 + SSR |
+| Solder paste | Relife HW21 Sn63/Pb37 (183°C) | Primary paste |
+| Solder paste | Sn42/Bi58 low-temp (138°C) | Alternative for heat-sensitive components |
+
+## Wiring
+
+```
+MAINS (230V) ─── [Emergency Stop] ─── Kabelverschraubung into box
+                                              │
+  Live ──────────────── SSR input ─── SSR output ──── Oven element (hot)
+  Neutral ─────────────────────────────────────────── Oven element (neutral)
+  Earth ───────────────────────────────────────────── Oven chassis
+
+  SSR control (+) ──── ESP32 GPIO5
+  SSR control (-) ──── ESP32 GND
+
+  ESP32 3.3V ─── 100K resistor ──┬── NTC thermistor ─── ESP32 GND
+                                  │
+                             ESP32 GPIO4 (ADC)
+
+  ESP32 powered via USB (separate charger)
+  Thermistor wires through Kabelverschraubung into oven chamber
+```
+
+## Oven Modifications
+
+1. Bypass (short) the built-in thermostat
+2. Drill ~4mm hole for thermistor wire, seal with Kapton tape
+
+## Firmware
+
+Rust (esp-rs) firmware for ESP32-S3-DevKitC in `firmware/`.
+
+### Modules
+
+| File | Purpose |
+|------|---------|
+| `sensor.rs` | `TemperatureSensor` trait + NTC 100K B3950 thermistor (ADC) |
+| `pid.rs` | PID controller (output 0–100%) |
+| `profile.rs` | Reflow profile state machine (Preheat→Soak→Reflow→Cooling) |
+| `ssr.rs` | Slow PWM driver for solid-state relay |
+| `web.rs` | HTTP server with live dashboard + JSON API |
+| `main.rs` | WiFi, control loop (4 Hz), wires everything together |
+
+### Wiring
+
+```
+GPIO4 (ADC) ──┬── NTC 100K ── GND
+              └── 100K resistor ── 3.3V
+
+GPIO5        ── SSR input (+)
+GND          ── SSR input (-)
+```
+
+### Build & Flash
+
+```sh
+# Prerequisites: mise (https://mise.jdx.dev)
+make setup
+
+# Build and flash (WiFi secrets sourced from ../home-assistant-config/esphome/secrets.sops.yaml):
+make flash
+```
+
+### Web UI
+
+Once running, open `http://<esp32-ip>/` in a browser. Endpoints:
+- `GET /` — dashboard with live temperature
+- `GET /status` — JSON: `{temperature, target, duty_pct, phase}`
+- `POST /start` — begin reflow profile
+- `POST /stop` — abort
 
 ## Status
 
-🚧 **Planning phase** — selecting oven, defining controller requirements.
+🚧 **Prototype** — firmware scaffolded, hardware assembly pending.
 
 ## Open Questions
 
-- [ ] Which toaster oven? (size must fit Granit PCB: 92 × 99.5mm)
-- [ ] MCU choice: RP2040, ESP32, or STM32?
-- [ ] UI: OLED display + buttons, or web interface (ESP32)?
-- [ ] Single or dual zone heating?
+- [x] Which toaster oven? → Severin TO-2052 (9L, 800W, fits Granit 92×99.5mm and pedalboard 179×112mm)
+- [ ] PID tuning for chosen oven
+- [ ] Over-temperature safety cutoff (software watchdog)
 
 ## Related
 
