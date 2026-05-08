@@ -112,11 +112,21 @@ Once running, open `http://reflow-oven.home/` in a browser. Endpoints:
 
 🚧 **Prototype** — firmware scaffolded, hardware assembly pending.
 
+## Safety
+
+| Layer | Protection |
+|-------|-----------|
+| Hardware | Emergency stop switch (mains kill) |
+| Hardware | Oven mechanical timer (backup cutoff) |
+| Software | Over-temperature >250°C → heater off |
+| Software | Sensor broken (<-10°C or >300°C) → heater off |
+| Software | Profile timeout >10 min → heater off |
+
 ## Open Questions
 
 - [x] Which toaster oven? → Severin TO-2052 (9L, 800W, fits Granit 92×99.5mm and pedalboard 179×112mm)
+- [x] Over-temperature safety cutoff (software watchdog)
 - [ ] PID tuning for chosen oven
-- [ ] Over-temperature safety cutoff (software watchdog)
 
 ## Related
 
