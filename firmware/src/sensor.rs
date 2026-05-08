@@ -45,7 +45,8 @@ where
     fn read_celsius(&mut self) -> Result<f32> {
         let raw: u16 = self.channel.read_raw()?;
         let max_adc = 4095.0_f32;
-        let r_ntc = self.r_series * (max_adc / raw as f32 - 1.0);
+        // NTC between GPIO and GND, R_series between GPIO and 3.3V
+        let r_ntc = self.r_series / (max_adc / raw as f32 - 1.0);
 
         // B-parameter Steinhart-Hart
         let inv_t = 1.0 / (self.t_nominal + 273.15)
