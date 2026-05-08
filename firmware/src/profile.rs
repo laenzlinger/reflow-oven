@@ -1,6 +1,8 @@
+#[cfg(not(test))]
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(not(test), derive(Serialize, Deserialize))]
 pub enum Phase {
     Idle,
     Preheat,
@@ -10,7 +12,8 @@ pub enum Phase {
     Done,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+#[cfg_attr(not(test), derive(Serialize, Deserialize))]
 pub struct Profile {
     pub preheat_target: f32,   // °C
     pub soak_target: f32,      // °C
@@ -105,5 +108,80 @@ impl ProfileRunner {
             }
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn starts_idle() {
+        let runner = ProfileRunner::new(Profile::default());
+        assert_eq!(runner.phase, Phase::Idle);
+    }
+
+    #[test]
+    fn start_enters_preheat() {
+        let mut runner = ProfileRunner::new(Profile::default());
+        runner.start();
+        assert_eq!(runner.phase, Phase::Preheat);
+    }
+
+    #[test]
+    fn preheat_to_soak_on_target() {
+        let mut runner = ProfileRunner::new(Profile::sn63_pb37());
+        runner.start();
+        runner.update(150.0, 0.25);
+        assert_eq!(runner.phase, Phase::Soak);
+    }
+
+    #[test]
+    fn soak_to_reflow_after_duration() {
+        let mut runner = ProfileRunner::new(Profile::sn63_pb37());
+        runner.start();
+        runner.update(150.0, 0.25); // → Soak
+        // Advance 60 seconds
+        for _ in 0..240 {
+            runner.update(170.0, 0.25);
+        }
+        assert_eq!(runner.phase, Phase::Reflow);
+    }
+
+    #[test]
+    fn reflow_to_cooling_after_duration() {
+        let mut runner = ProfileRunner::new(Profile::sn63_pb37());
+        runner.start();
+        runner.update(150.0, 0.25); // → Soak
+        for _ in 0..240 { runner.update(170.0, 0.25); } // → Reflow
+        for _ in 0..120 { runner.update(210.0, 0.25); } // 30s → Cooling
+        assert_eq!(runner.phase, Phase::Cooling);
+    }
+
+    #[test]
+    fn cooling_to_done_on_target() {
+        let mut runner = ProfileRunner::new(Profile::sn63_pb37());
+        runner.start();
+        runner.update(150.0, 0.25);
+        for _ in 0..240 { runner.update(170.0, 0.25); }
+        for _ in 0..120 { runner.update(210.0, 0.25); }
+        runner.update(50.0, 0.25);
+        assert_eq!(runner.phase, Phase::Done);
+    }
+
+    #[test]
+    fn stop_returns_to_idle() {
+        let mut runner = ProfileRunner::new(Profile::default());
+        runner.start();
+        runner.stop();
+        assert_eq!(runner.phase, Phase::Idle);
+    }
+
+    #[test]
+    fn target_temperature_matches_phase() {
+        let mut runner = ProfileRunner::new(Profile::sn63_pb37());
+        assert_eq!(runner.target_temperature(), 0.0);
+        runner.start();
+        assert_eq!(runner.target_temperature(), 150.0);
     }
 }

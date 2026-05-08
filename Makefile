@@ -1,4 +1,4 @@
-.PHONY: help setup decrypt build flash monitor clean
+.PHONY: help setup decrypt build flash monitor test clean
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
@@ -31,6 +31,10 @@ flash: decrypt ## Build and flash firmware
 
 monitor: ## Serial monitor
 	@$(ESP_ENV) espflash monitor --port $(USB_PORT)
+
+test: ## Run unit tests (host, no hardware needed)
+	@rustc --test --edition 2021 firmware/src/pid.rs -o /tmp/pid_test && /tmp/pid_test
+	@rustc --test --edition 2021 firmware/src/profile.rs -o /tmp/profile_test && /tmp/profile_test
 
 clean: ## Clean build artifacts and decrypted secrets
 	rm -f firmware/.env

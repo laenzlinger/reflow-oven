@@ -43,3 +43,51 @@ impl Pid {
         output.clamp(self.output_min, self.output_max)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn output_zero_when_at_setpoint() {
+        let mut pid = Pid::new(1.0, 0.0, 0.0);
+        pid.set_target(100.0);
+        let out = pid.update(100.0, 0.25);
+        assert_eq!(out, 0.0);
+    }
+
+    #[test]
+    fn output_positive_when_below_setpoint() {
+        let mut pid = Pid::new(1.0, 0.0, 0.0);
+        pid.set_target(100.0);
+        let out = pid.update(50.0, 0.25);
+        assert!(out > 0.0);
+    }
+
+    #[test]
+    fn output_clamped_to_100() {
+        let mut pid = Pid::new(10.0, 0.0, 0.0);
+        pid.set_target(200.0);
+        let out = pid.update(0.0, 0.25);
+        assert_eq!(out, 100.0);
+    }
+
+    #[test]
+    fn output_clamped_to_zero() {
+        let mut pid = Pid::new(1.0, 0.0, 0.0);
+        pid.set_target(50.0);
+        let out = pid.update(200.0, 0.25);
+        assert_eq!(out, 0.0);
+    }
+
+    #[test]
+    fn reset_clears_state() {
+        let mut pid = Pid::new(1.0, 1.0, 1.0);
+        pid.set_target(100.0);
+        pid.update(50.0, 0.25);
+        pid.reset();
+        // After reset, integral and prev_error should be 0
+        let out = pid.update(100.0, 0.25);
+        assert_eq!(out, 0.0);
+    }
+}
