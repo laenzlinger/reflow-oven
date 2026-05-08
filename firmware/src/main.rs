@@ -186,9 +186,12 @@ fn main() -> Result<()> {
             elapsed_s += dt;
         }
 
-        // Record history during active profile
+        // Record history during active profile (once per second)
         if runner.phase != Phase::Idle {
-            history.lock().unwrap().push(elapsed_s, temp, runner.target_temperature(), runner.phase);
+            let last_t = history.lock().unwrap().points.last().map(|p| p.t).unwrap_or(-1.0);
+            if elapsed_s - last_t >= 1.0 {
+                history.lock().unwrap().push(elapsed_s, temp, runner.target_temperature(), runner.phase);
+            }
         }
 
         // Update shared state for web UI
