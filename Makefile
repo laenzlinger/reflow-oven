@@ -1,4 +1,4 @@
-.PHONY: help setup decrypt build flash monitor test clean
+.PHONY: help setup decrypt build flash ota monitor test clean
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
 
@@ -27,7 +27,14 @@ build: decrypt ## Build firmware
 flash: decrypt ## Build and flash firmware
 	@$(ESP_ENV) set -a && source firmware/.env && set +a && \
 	cd firmware && cargo build --release && \
-	espflash flash --port $(USB_PORT) target/xtensa-esp32s3-espidf/release/reflow-oven
+	espflash flash --port $(USB_PORT) --partition-table partitions.csv target/xtensa-esp32s3-espidf/release/reflow-oven
+
+ota: decrypt ## Build and OTA flash over WiFi
+	@$(ESP_ENV) set -a && source firmware/.env && set +a && \
+	cd firmware && cargo build --release && \
+	espflash save-image --chip esp32s3 target/xtensa-esp32s3-espidf/release/reflow-oven target/ota.bin && \
+	curl --limit-rate 50k -X POST --data-binary @target/ota.bin http://reflow-oven.home/ota || true
+	@echo "OTA sent — device is rebooting..."
 
 monitor: ## Serial monitor
 	@$(ESP_ENV) espflash monitor --port $(USB_PORT)

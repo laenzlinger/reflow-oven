@@ -1,6 +1,8 @@
 use anyhow::Result;
 use esp_idf_svc::http::server::{Configuration, EspHttpServer};
 use esp_idf_svc::http::Method;
+use esp_idf_svc::io::EspIOError;
+use esp_idf_svc::ota::EspOta;
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 
@@ -77,8 +79,12 @@ canvas{width:100%;height:250px;background:#1a1a1a;border:1px solid #333;border-r
 <button onclick="fetch('/start',{method:'POST'})">Start</button>
 <button onclick="fetch('/stop',{method:'POST'})">Stop</button>
 <button onclick="fetch('/simulate',{method:'POST'})" id="simbtn">Simulate: OFF</button>
+<input type="file" id="otafile" accept=".bin" style="display:none" onchange="doOta(this)">
+<button onclick="document.getElementById('otafile').click()">OTA Update</button>
 </div>
 <p style="font-size:1em;color:#888">LED: <span style="color:#a0f">&#x25cf;</span> connecting <span style="color:#00f">&#x25cf;</span> idle <span style="color:#f80">&#x25cf;</span> preheat <span style="color:#ff0">&#x25cf;</span> soak <span style="color:#f00">&#x25cf;</span> reflow <span style="color:#0cf">&#x25cf;</span> cooling <span style="color:#0f0">&#x25cf;</span> done</p>
+<h2 style="margin-top:1.5em">Saved Runs</h2>
+<div id="runs" style="font-size:0.9em"></div>
 <script>
 const canvas=document.getElementById('chart'),ctx=canvas.getContext('2d');
 function resize(){canvas.width=canvas.clientWidth;canvas.height=canvas.clientHeight}
@@ -116,24 +122,61 @@ function drawChart(hist){
   }
 }
 
+let lastPhase='Idle';
+function doOta(input){
+  const f=input.files[0];if(!f)return;
+  if(!confirm('Flash '+f.name+' ('+Math.round(f.size/1024)+'KB)?'))return;
+  document.body.style.cursor='wait';
+  fetch('/ota',{method:'POST',body:f}).catch(()=>{});
+  setTimeout(()=>{document.body.style.cursor='';alert('OTA sent — device rebooting...');setTimeout(()=>location.reload(),8000);},3000);
+}
+function getRuns(){return JSON.parse(localStorage.getItem('reflowRuns')||'[]');}
+function saveRuns(r){localStorage.setItem('reflowRuns',JSON.stringify(r));}
+function renderRuns(){
+  const runs=getRuns(),el=document.getElementById('runs');
+  if(!runs.length){el.innerHTML='<p style="color:#666">No saved runs yet.</p>';return;}
+  el.innerHTML=runs.map((r,i)=>'<div style="margin:0.3em 0;padding:0.4em;background:#1a1a1a;border:1px solid #333;border-radius:4px">'
+    +'<span style="color:#0f0">'+r.date+'</span> | '+r.profile+' | '+(r.status==='aborted'?'<span style="color:#f66">aborted</span>':'complete')+' | peak '+r.peak.toFixed(0)+'&deg;C '
+    +'<button onclick="downloadRun('+i+')" style="padding:0.2em 0.5em;font-size:0.8em">CSV</button> '
+    +'<button onclick="deleteRun('+i+')" style="padding:0.2em 0.5em;font-size:0.8em;color:#f66">Del</button></div>'
+  ).join('');
+}
+function downloadRun(i){
+  const r=getRuns()[i],csv='t,temp,target,phase\n'+r.points.map(p=>p.t+','+p.temp+','+p.target+','+p.phase).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv,'+encodeURIComponent(csv);
+  a.download='reflow-'+r.date.replace(/[: ]/g,'-')+'.csv';a.click();
+}
+function deleteRun(i){const r=getRuns();r.splice(i,1);saveRuns(r);renderRuns();}
+
 function poll(){
   fetch('/status').then(r=>r.json()).then(d=>{
     document.getElementById('temp').textContent=d.temperature.toFixed(1);
     document.getElementById('target').textContent=d.target.toFixed(0);
     document.getElementById('duty').textContent=d.duty_pct.toFixed(0);
     document.getElementById('phase').textContent=d.phase;
-  const pc={Preheat:'#f80',Soak:'#ff0',Reflow:'#f00',Cooling:'#0cf',Done:'#0f0',Idle:'#00f'};
-  document.getElementById('phase').style.color=pc[d.phase]||'#ff0';
+    const pc={Preheat:'#f80',Soak:'#ff0',Reflow:'#f00',Cooling:'#0cf',Done:'#0f0',Idle:'#00f'};
+    document.getElementById('phase').style.color=pc[d.phase]||'#ff0';
     document.getElementById('simbtn').textContent='Simulate: '+(d.simulating?'ON':'OFF');
+    if((d.phase==='Done'||d.phase==='Idle')&&lastPhase!=='Done'&&lastPhase!=='Idle'){
+      fetch('/history').then(r=>r.json()).then(hist=>{
+        if(!hist.length)return;
+        const runs=getRuns();
+        runs.unshift({date:new Date().toLocaleString(),profile:document.getElementById('profile').value,peak:Math.max(...hist.map(p=>p.temp)),status:d.phase==='Done'?'complete':'aborted',points:hist});
+        saveRuns(runs);renderRuns();
+      });
+    }
+    lastPhase=d.phase;
   });
   fetch('/history').then(r=>r.json()).then(drawChart);
   setTimeout(poll,1000);
 }
-poll();
+renderRuns();poll();
 </script></body></html>"#;
 
 pub fn start_server(state: SharedState, history: SharedHistory) -> Result<EspHttpServer<'static>> {
-    let mut server = EspHttpServer::new(&Configuration::default())?;
+    let mut config = Configuration::default();
+    config.stack_size = 10240;
+    let mut server = EspHttpServer::new(&config)?;
 
     server.fn_handler("/", Method::Get, move |req| {
         let len = INDEX_HTML.len().to_string();
@@ -162,6 +205,28 @@ pub fn start_server(state: SharedState, history: SharedHistory) -> Result<EspHtt
         let headers = [("Content-Type", "application/json"), ("Content-Length", len.as_str())];
         let mut resp = req.into_response(200, Some("OK"), &headers)?;
         resp.write(json.as_bytes())?;
+        Ok::<(), esp_idf_svc::io::EspIOError>(())
+    })?;
+
+    server.fn_handler("/ota", Method::Post, move |mut req| {
+        let len: usize = req.header("Content-Length")
+            .and_then(|v| v.parse().ok()).unwrap_or(0);
+        let mut ota = EspOta::new().map_err(EspIOError)?;
+        let mut update = if len > 0 {
+            ota.initiate_update_with_known_size(len)
+        } else {
+            ota.initiate_update()
+        }.map_err(EspIOError)?;
+        let mut buf = [0u8; 1024];
+        loop {
+            let n = req.read(&mut buf)?;
+            if n == 0 { break; }
+            update.write(&buf[..n]).map_err(EspIOError)?;
+        }
+        update.complete().map_err(EspIOError)?;
+        req.into_ok_response()?;
+        esp_idf_svc::hal::reset::restart();
+        #[allow(unreachable_code)]
         Ok::<(), esp_idf_svc::io::EspIOError>(())
     })?;
 
