@@ -92,6 +92,9 @@ make setup
 
 # Build and flash (WiFi secrets sourced from ../home-assistant-config/esphome/secrets.sops.yaml):
 make flash
+
+# OTA update over WiFi (no USB needed):
+make ota
 ```
 
 ### Web UI
@@ -107,6 +110,7 @@ Once running, open `http://reflow-oven.home/` in a browser. Endpoints:
 - `POST /stop` — abort
 - `POST /simulate` — toggle simulated sensor
 - `POST /profile` — set profile (`sn63pb37` or `sn42bi58`)
+- `POST /ota` — upload firmware binary for OTA update
 
 ## Status
 

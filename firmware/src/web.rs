@@ -175,7 +175,7 @@ renderRuns();poll();
 
 pub fn start_server(state: SharedState, history: SharedHistory) -> Result<EspHttpServer<'static>> {
     let mut config = Configuration::default();
-    config.stack_size = 10240;
+    config.stack_size = 16384;
     let mut server = EspHttpServer::new(&config)?;
 
     server.fn_handler("/", Method::Get, move |req| {
@@ -225,8 +225,10 @@ pub fn start_server(state: SharedState, history: SharedHistory) -> Result<EspHtt
         }
         update.complete().map_err(EspIOError)?;
         req.into_ok_response()?;
-        esp_idf_svc::hal::reset::restart();
-        #[allow(unreachable_code)]
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(200));
+            esp_idf_svc::hal::reset::restart();
+        });
         Ok::<(), esp_idf_svc::io::EspIOError>(())
     })?;
 

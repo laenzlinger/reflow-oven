@@ -33,8 +33,15 @@ ota: decrypt ## Build and OTA flash over WiFi
 	@$(ESP_ENV) set -a && source firmware/.env && set +a && \
 	cd firmware && cargo build --release && \
 	espflash save-image --chip esp32s3 target/xtensa-esp32s3-espidf/release/reflow-oven target/ota.bin && \
-	curl --limit-rate 50k -X POST --data-binary @target/ota.bin http://reflow-oven.home/ota || true
-	@echo "OTA sent — device is rebooting..."
+	echo "📡 Uploading $$(du -h target/ota.bin | cut -f1) to reflow-oven.home..." && \
+	curl --connect-timeout 5 -m 90 -H "Expect:" --progress-bar -X POST --data-binary @target/ota.bin http://reflow-oven.home/ota >/dev/null
+	@echo "⏳ Flashing & rebooting..."
+	@for i in $$(seq 1 30); do \
+		sleep 2; \
+		if curl -s --connect-timeout 2 http://reflow-oven.home/status >/dev/null 2>&1; then \
+			echo "✅ OTA complete — device is back online"; exit 0; \
+		fi; \
+	done; echo "⚠️  Device did not come back within 60s"
 
 monitor: ## Serial monitor
 	@$(ESP_ENV) espflash monitor --port $(USB_PORT)
