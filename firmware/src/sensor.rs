@@ -43,10 +43,19 @@ where
     M: Borrow<AdcDriver<'a, C::AdcUnit>>,
 {
     fn read_celsius(&mut self) -> Result<f32> {
-        let raw: u16 = self.channel.read_raw()?;
+        // Average multiple samples to reject ADC glitches
+        let mut sum: u32 = 0;
+        let samples = 8;
+        for _ in 0..samples {
+            sum += self.channel.read_raw()? as u32;
+        }
+        let raw = (sum / samples) as f32;
+        if raw < 1.0 || raw > 4094.0 {
+            anyhow::bail!("ADC out of range: {raw}");
+        }
         let max_adc = 4095.0_f32;
         // NTC between GPIO and GND, R_series between GPIO and 3.3V
-        let r_ntc = self.r_series / (max_adc / raw as f32 - 1.0);
+        let r_ntc = self.r_series / (max_adc / raw - 1.0);
 
         // B-parameter Steinhart-Hart
         let inv_t = 1.0 / (self.t_nominal + 273.15)

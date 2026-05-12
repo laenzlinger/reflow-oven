@@ -16,11 +16,12 @@ pub struct OvenState {
     pub phase: Phase,
     pub simulating: bool,
     pub elapsed_s: f32,
+    pub open_door: bool,
 }
 
 impl Default for OvenState {
     fn default() -> Self {
-        Self { temperature: 0.0, target: 0.0, duty_pct: 0.0, phase: Phase::Idle, simulating: false, elapsed_s: 0.0 }
+        Self { temperature: 0.0, target: 0.0, duty_pct: 0.0, phase: Phase::Idle, simulating: false, elapsed_s: 0.0, open_door: false }
     }
 }
 
@@ -123,6 +124,17 @@ function drawChart(hist){
 }
 
 let lastPhase='Idle';
+let doorAlerted=false;
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+document.addEventListener('click',()=>audioCtx.resume(),{once:true});
+function doorAlert(){
+  document.title='🚪 OPEN DOOR';
+  const b=document.createElement('div');
+  b.style.cssText='position:fixed;top:0;left:0;right:0;padding:20px;background:#f00;color:#fff;font-size:2em;text-align:center;z-index:9999';
+  b.textContent='🚪 OPEN DOOR NOW';
+  document.body.prepend(b);
+  audioCtx.resume().then(()=>{[0,0.3,0.6,0.9,1.2].forEach(t=>{const o=audioCtx.createOscillator();o.frequency.value=1000;o.connect(audioCtx.destination);o.start(audioCtx.currentTime+t);o.stop(audioCtx.currentTime+t+0.2);});});
+}
 function doOta(input){
   const f=input.files[0];if(!f)return;
   if(!confirm('Flash '+f.name+' ('+Math.round(f.size/1024)+'KB)?'))return;
@@ -157,6 +169,8 @@ function poll(){
     const pc={Preheat:'#f80',Soak:'#ff0',Reflow:'#f00',Cooling:'#0cf',Done:'#0f0',Idle:'#00f'};
     document.getElementById('phase').style.color=pc[d.phase]||'#ff0';
     document.getElementById('simbtn').textContent='Simulate: '+(d.simulating?'ON':'OFF');
+    if(d.open_door&&!doorAlerted){doorAlerted=true;doorAlert();}
+    if(d.phase==='Idle')doorAlerted=false;
     if((d.phase==='Done'||d.phase==='Idle')&&lastPhase!=='Done'&&lastPhase!=='Idle'){
       fetch('/history').then(r=>r.json()).then(hist=>{
         if(!hist.length)return;

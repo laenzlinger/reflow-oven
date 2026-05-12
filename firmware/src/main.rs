@@ -128,6 +128,7 @@ fn main() -> Result<()> {
     // Control loop (~4 Hz)
     let dt = 0.25_f32;
     let mut elapsed_s: f32 = 0.0;
+    let mut time_above_liquidus: f32 = 0.0;
     let mut last_phase = Phase::Idle;
     loop {
         let now = Instant::now();
@@ -140,6 +141,7 @@ fn main() -> Result<()> {
                     pid.reset();
                     sim_sensor = SimulatedSensor::new();
                     elapsed_s = 0.0;
+                    time_above_liquidus = 0.0;
                     history.lock().unwrap().clear();
                 }
                 Cmd::Stop => {
@@ -161,7 +163,13 @@ fn main() -> Result<()> {
             sim_sensor.tick(dt);
             sim_sensor.read_celsius().unwrap_or(0.0)
         } else {
-            real_sensor.read_celsius().unwrap_or(0.0)
+            match real_sensor.read_celsius() {
+                Ok(t) => t,
+                Err(_) => {
+                    std::thread::sleep(Duration::from_millis(250) - now.elapsed());
+                    continue;
+                }
+            }
         };
 
         // Update profile state machine
@@ -204,6 +212,13 @@ fn main() -> Result<()> {
             elapsed_s += dt;
         }
 
+        // Track time above liquidus (183°C for Sn63/Pb37)
+        const LIQUIDUS_TEMP: f32 = 183.0;
+        const OPEN_DOOR_TIME: f32 = 50.0;
+        if temp >= LIQUIDUS_TEMP && runner.phase != Phase::Idle {
+            time_above_liquidus += dt;
+        }
+
         // Record history during active profile (once per second)
         if runner.phase != Phase::Idle {
             let last_t = history.lock().unwrap().points.last().map(|p| p.t).unwrap_or(-1.0);
@@ -221,6 +236,7 @@ fn main() -> Result<()> {
             s.phase = runner.phase;
             s.simulating = simulating;
             s.elapsed_s = elapsed_s;
+            s.open_door = time_above_liquidus >= OPEN_DOOR_TIME;
         }
 
         // Update LED on phase change
