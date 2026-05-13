@@ -120,7 +120,7 @@ fn main() -> Result<()> {
     let mut ssr = Ssr::new(ssr_pin, 2000);
 
     // PID controller
-    let mut pid = Pid::new(2.0, 0.01, 5.0);
+    let mut pid = Pid::new(1.5, 0.005, 15.0);
 
     // Profile
     let mut runner = ProfileRunner::new(Profile::default());
@@ -184,7 +184,7 @@ fn main() -> Result<()> {
         };
 
         // Over-temperature watchdog: kill heat if >250°C
-        const MAX_SAFE_TEMP: f32 = 250.0;
+        const MAX_SAFE_TEMP: f32 = 280.0;
         const MIN_SANE_TEMP: f32 = -10.0;
         const MAX_SANE_TEMP: f32 = 300.0;
         const MAX_PROFILE_DURATION_S: f32 = 600.0; // 10 minutes

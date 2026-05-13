@@ -41,7 +41,7 @@ impl Profile {
             soak_target: 170.0,
             soak_ramp: 0.5,       // °C/s (gentle ramp during soak)
             soak_duration_s: 60,
-            reflow_target: 220.0,
+            reflow_target: 245.0,
             reflow_ramp: 1.5,     // °C/s
             reflow_duration_s: 45,
             cooling_target: 50.0,

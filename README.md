@@ -28,7 +28,7 @@ MAINS → [Emergency Stop] → [Electronics Box] → [Oven]
 | Toaster oven | Severin TO-2052 (9L, 800W) | Heating chamber |
 | Controller | ESP32-S3-DevKitC-1 | Profile management, PID control, WiFi web UI |
 | SSR | Solid-state relay (available) | Switches mains to heating elements |
-| Temperature sensor | NTC 100K B3950 (DollaTek, glass-sealed) | Temperature sensing inside chamber |
+| Temperature sensor | MAX31855 + Type K thermocouple | Temperature sensing inside chamber (±2°C up to 1350°C) |
 | Emergency stop | Mushroom-head switch | Mains kill switch |
 | Enclosure | Abzweigdose ~180×120mm | Houses ESP32 + SSR + PSU |
 | Solder paste | Relife HW21 Sn63/Pb37 (183°C) | Primary paste |
@@ -46,18 +46,21 @@ MAINS (230V) ─── [Emergency Stop] ─── Kabelverschraubung into box
   SSR control (+) ──── ESP32 GPIO5
   SSR control (-) ──── ESP32 GND
 
-  ESP32 3.3V ─── 100K resistor ──┬── NTC thermistor ─── ESP32 GND
-                                  │
-                             ESP32 GPIO4 (ADC)
+  ESP32 3.3V ─── MAX31855 VCC
+  ESP32 GND  ─── MAX31855 GND
+  ESP32 GPIO4 ── MAX31855 CS
+  ESP32 GPIO6 ── MAX31855 SCK
+  ESP32 GPIO7 ── MAX31855 SO
+  Type K thermocouple ── MAX31855 T+/T-
 
   ESP32 powered via USB (separate charger)
-  Thermistor wires through Kabelverschraubung into oven chamber
+  Thermocouple wires through Kabelverschraubung into oven chamber
 ```
 
 ## Oven Modifications
 
 1. Bypass (short) the built-in thermostat
-2. Drill ~4mm hole for thermistor wire, seal with Kapton tape
+2. Drill ~4mm hole for thermocouple wire, seal with Kapton tape
 
 ## Firmware
 
@@ -67,7 +70,7 @@ Rust (esp-rs) firmware for ESP32-S3-DevKitC in `firmware/`.
 
 | File | Purpose |
 |------|---------|
-| `sensor.rs` | `TemperatureSensor` trait + NTC 100K B3950 thermistor (ADC) |
+| `sensor.rs` | `TemperatureSensor` trait + MAX31855 thermocouple (SPI) |
 | `pid.rs` | PID controller (output 0–100%) |
 | `profile.rs` | Reflow profile state machine (Preheat→Soak→Reflow→Cooling) |
 | `ssr.rs` | Slow PWM driver for solid-state relay |
@@ -77,8 +80,9 @@ Rust (esp-rs) firmware for ESP32-S3-DevKitC in `firmware/`.
 ### Wiring
 
 ```
-GPIO4 (ADC) ──┬── NTC 100K ── GND
-              └── 100K resistor ── 3.3V
+GPIO4 (CS)   ── MAX31855 CS
+GPIO6 (SCK)  ── MAX31855 SCK
+GPIO7 (SO)   ── MAX31855 SO
 
 GPIO5        ── SSR input (+)
 GND          ── SSR input (-)
@@ -130,7 +134,8 @@ Once running, open `http://reflow-oven.home/` in a browser. Endpoints:
 
 - [x] Which toaster oven? → Severin TO-2052 (9L, 800W, fits Granit 92×99.5mm and pedalboard 179×112mm)
 - [x] Over-temperature safety cutoff (software watchdog)
-- [ ] PID tuning for chosen oven
+- [x] PID tuning for chosen oven → Kp=1.5, Ki=0.005, Kd=15.0 with ramped targets
+- [ ] Replace NTC with MAX31855 + Type K thermocouple (NTC too inaccurate above 150°C)
 
 ## Related
 

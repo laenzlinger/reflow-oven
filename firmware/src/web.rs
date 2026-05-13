@@ -125,15 +125,12 @@ function drawChart(hist){
 
 let lastPhase='Idle';
 let doorAlerted=false;
-const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-document.addEventListener('click',()=>audioCtx.resume(),{once:true});
 function doorAlert(){
   document.title='🚪 OPEN DOOR';
   const b=document.createElement('div');
   b.style.cssText='position:fixed;top:0;left:0;right:0;padding:20px;background:#f00;color:#fff;font-size:2em;text-align:center;z-index:9999';
   b.textContent='🚪 OPEN DOOR NOW';
   document.body.prepend(b);
-  audioCtx.resume().then(()=>{[0,0.3,0.6,0.9,1.2].forEach(t=>{const o=audioCtx.createOscillator();o.frequency.value=1000;o.connect(audioCtx.destination);o.start(audioCtx.currentTime+t);o.stop(audioCtx.currentTime+t+0.2);});});
 }
 function doOta(input){
   const f=input.files[0];if(!f)return;
