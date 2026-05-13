@@ -17,7 +17,7 @@ MAINS → [Emergency Stop] → [Electronics Box] → [Oven]
                             ┌─────┴─────┐
                             │ SSR       │──── switches Live to oven elements
                             │ ESP32-S3  │──── WiFi web UI, PID control
-                            │ NTC divider│──── thermistor into oven chamber
+                            │ MAX31855  │──── thermocouple into oven chamber
                             └───────────┘
 ```
 
