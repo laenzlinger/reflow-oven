@@ -183,7 +183,7 @@ fn main() -> Result<()> {
             pid.update(temp, dt)
         };
 
-        // Over-temperature watchdog: kill heat if >250°C
+        // Over-temperature watchdog
         const MAX_SAFE_TEMP: f32 = 280.0;
         const MIN_SANE_TEMP: f32 = -10.0;
         const MAX_SANE_TEMP: f32 = 300.0;
