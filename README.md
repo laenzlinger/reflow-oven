@@ -135,7 +135,7 @@ Once running, open `http://reflow-oven.home/` in a browser. Endpoints:
 - [x] Which toaster oven? → Severin TO-2052 (9L, 800W, fits Granit 92×99.5mm and pedalboard 179×112mm)
 - [x] Over-temperature safety cutoff (software watchdog)
 - [x] PID tuning for chosen oven → Kp=1.5, Ki=0.005, Kd=15.0 with ramped targets
-- [ ] Replace NTC with MAX31855 + Type K thermocouple (NTC too inaccurate above 150°C)
+- [x] Replace NTC with MAX31855 + Type K thermocouple (NTC too inaccurate above 150°C)
 
 ## Related
 
