@@ -6,9 +6,6 @@ mod ssr;
 mod web;
 
 use anyhow::Result;
-use esp_idf_svc::hal::adc::attenuation;
-use esp_idf_svc::hal::adc::oneshot::config::AdcChannelConfig;
-use esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
 use esp_idf_svc::hal::gpio::PinDriver;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::http::Method;
@@ -21,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use pid::Pid;
 use profile::{Phase, Profile, ProfileRunner};
-use sensor::{NtcThermistor, SimulatedSensor, TemperatureSensor};
+use sensor::{Max31855, SimulatedSensor, TemperatureSensor};
 use ssr::Ssr;
 use web::{History, OvenState, SharedHistory, SharedState};
 
@@ -104,14 +101,11 @@ fn main() -> Result<()> {
         req.into_ok_response().map(|_| ())
     })?;
 
-    // Sensor (NTC on ADC1, GPIO4)
-    let adc1 = AdcDriver::new(peripherals.adc1)?;
-    let adc_config = AdcChannelConfig {
-        attenuation: attenuation::DB_12,
-        ..Default::default()
-    };
-    let adc_channel = AdcChannelDriver::new(&adc1, peripherals.pins.gpio4, &adc_config)?;
-    let mut real_sensor = NtcThermistor::new(adc_channel);
+    // Sensor (MAX31855 thermocouple via SPI)
+    let cs = PinDriver::output(peripherals.pins.gpio4)?;
+    let sck = PinDriver::output(peripherals.pins.gpio6)?;
+    let so = PinDriver::input(peripherals.pins.gpio7, esp_idf_svc::hal::gpio::Pull::Down)?;
+    let mut real_sensor = Max31855::new(cs, sck, so);
     let mut sim_sensor = SimulatedSensor::new();
     let mut simulating = false;
 
@@ -184,7 +178,7 @@ fn main() -> Result<()> {
         };
 
         // Over-temperature watchdog
-        const MAX_SAFE_TEMP: f32 = 280.0;
+        const MAX_SAFE_TEMP: f32 = 250.0;
         const MIN_SANE_TEMP: f32 = -10.0;
         const MAX_SANE_TEMP: f32 = 300.0;
         const MAX_PROFILE_DURATION_S: f32 = 600.0; // 10 minutes

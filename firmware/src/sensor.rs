@@ -1,73 +1,73 @@
 use anyhow::Result;
-use esp_idf_svc::hal::adc::oneshot::{AdcChannelDriver, AdcDriver};
-use esp_idf_svc::hal::adc::AdcChannel;
-use std::borrow::Borrow;
+use esp_idf_svc::hal::gpio::{Input, Output, PinDriver};
 
 pub trait TemperatureSensor {
     fn read_celsius(&mut self) -> Result<f32>;
 }
 
-/// NTC 100K B3950 thermistor via voltage divider on ADC.
-/// Wiring: 3.3V --- R_series --- ADC_pin --- NTC --- GND
-pub struct NtcThermistor<'a, C, M>
-where
-    C: AdcChannel,
-    M: Borrow<AdcDriver<'a, C::AdcUnit>>,
-{
-    channel: AdcChannelDriver<'a, C, M>,
-    r_series: f32,
-    b_coefficient: f32,
-    r_nominal: f32,
-    t_nominal: f32,
+/// MAX31855 thermocouple-to-digital converter via bit-banged SPI.
+/// Reads 14-bit thermocouple temperature with 0.25°C resolution.
+pub struct Max31855<'a> {
+    cs: PinDriver<'a, Output>,
+    sck: PinDriver<'a, Output>,
+    so: PinDriver<'a, Input>,
 }
 
-impl<'a, C, M> NtcThermistor<'a, C, M>
-where
-    C: AdcChannel,
-    M: Borrow<AdcDriver<'a, C::AdcUnit>>,
-{
-    pub fn new(channel: AdcChannelDriver<'a, C, M>) -> Self {
-        Self {
-            channel,
-            r_series: 100_000.0,
-            b_coefficient: 3950.0,
-            r_nominal: 100_000.0,
-            t_nominal: 25.0,
+impl<'a> Max31855<'a> {
+    pub fn new(
+        mut cs: PinDriver<'a, Output>,
+        mut sck: PinDriver<'a, Output>,
+        so: PinDriver<'a, Input>,
+    ) -> Self {
+        let _ = cs.set_high();
+        let _ = sck.set_low();
+        Self { cs, sck, so }
+    }
+
+    fn read_raw(&mut self) -> u32 {
+        let _ = self.cs.set_low();
+        std::thread::sleep(std::time::Duration::from_micros(1));
+
+        let mut data: u32 = 0;
+        for _ in 0..32 {
+            let _ = self.sck.set_high();
+            std::thread::sleep(std::time::Duration::from_micros(1));
+            data <<= 1;
+            if self.so.is_high() {
+                data |= 1;
+            }
+            let _ = self.sck.set_low();
+            std::thread::sleep(std::time::Duration::from_micros(1));
         }
+
+        let _ = self.cs.set_high();
+        data
     }
 }
 
-impl<'a, C, M> TemperatureSensor for NtcThermistor<'a, C, M>
-where
-    C: AdcChannel,
-    M: Borrow<AdcDriver<'a, C::AdcUnit>>,
-{
+impl<'a> TemperatureSensor for Max31855<'a> {
     fn read_celsius(&mut self) -> Result<f32> {
-        // Average multiple samples to reject ADC glitches
-        let mut sum: u32 = 0;
-        let samples = 8;
-        for _ in 0..samples {
-            sum += self.channel.read_raw()? as u32;
-        }
-        let raw = (sum / samples) as f32;
-        if raw < 1.0 || raw > 4094.0 {
-            anyhow::bail!("ADC out of range: {raw}");
-        }
-        let max_adc = 4095.0_f32;
-        // NTC between GPIO and GND, R_series between GPIO and 3.3V
-        let r_ntc = self.r_series / (max_adc / raw - 1.0);
+        let raw = self.read_raw();
 
-        // B-parameter Steinhart-Hart
-        let inv_t = 1.0 / (self.t_nominal + 273.15)
-            + (1.0 / self.b_coefficient) * (r_ntc / self.r_nominal).ln();
-        let temp_c = 1.0 / inv_t - 273.15;
+        // Bit 16 = fault flag
+        if raw & 0x10000 != 0 {
+            anyhow::bail!("MAX31855 fault: {:#x}", raw & 0x07);
+        }
 
-        Ok(temp_c)
+        // Thermocouple temp: bits 31..18 (14-bit signed, 0.25°C resolution)
+        let tc_raw = (raw >> 18) as i16;
+        // Sign-extend from 14 bits
+        let tc_signed = if tc_raw & 0x2000 != 0 {
+            (tc_raw | !0x3FFF) as f32
+        } else {
+            tc_raw as f32
+        };
+
+        Ok(tc_signed * 0.25)
     }
 }
 
 /// Simulated oven sensor for testing without hardware.
-/// Models a simple thermal system: heats when duty > 0, cools toward ambient.
 pub struct SimulatedSensor {
     temperature: f32,
     ambient: f32,
@@ -83,9 +83,7 @@ impl SimulatedSensor {
         self.duty_pct = duty;
     }
 
-    /// Advance simulation by dt seconds.
     pub fn tick(&mut self, dt: f32) {
-        // Simple model: max heating rate ~3°C/s at 100% duty, cooling ~0.5°C/s toward ambient
         let heat_rate = self.duty_pct / 100.0 * 3.0;
         let cool_rate = (self.temperature - self.ambient) * 0.005;
         self.temperature += (heat_rate - cool_rate) * dt;
